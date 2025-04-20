@@ -2,47 +2,124 @@
 library(readxl)
 library(janitor)
 library(dplyr)
-library(ggplot)
+library(ggplot2)
+library(FSA)
+library(psych)
 library(hnp)
 library(lme4)
 library(corrplot)
+library(performance)
+library(mgcv)
+library(glmmTMB)
+library(gamlss)
 
-## Read in the data
-fn <- "~/Desktop/Data/YOY_Striped_Bass_2013_2023.xlsx"
+# Data importation --------------------------------------------------------
+
+fn <- "~/Desktop/Data/YOY_Striped_Bass_2013_2023.xlsx" # file name
 
 bass <- read_excel(fn, 
                    sheet = "2013-2023_CLEAN") |>
   clean_names() |>
   mutate(year = factor(year),
          station = factor(station),
-         tide = as.numeric(tide),
+         tide = as.numeric(tide), # Tide is read in as a character
          vegetation = factor(vegetation))
 
 bass
 
-## or complete cases - all NAs removed
+# Reminders ---------------------------------------------------------------
 
-## Descriptive statistics
-library(FSA)
+# How to fit quasiPoisson, zero inflated GLMMs in R
+
+# Could use complete cases with all NAs removed
+# Show code for filtering the raw data to obtain the subset used
+# use a LRT to determine if the random effect is preferred!
+
+# salinity and longitude are expected to be positively associated as you move eastward, but whether this generates estimation problems for the variance is to be determined 
+
+# Descriptive statistics --------------------------------------------------
+
 Summarize(mosa ~ year, data = bass)
 
-library(psych)
-describe(bass) # only min and max are informative for categorical variables
-# ALl “year-stations”” have 817 values so not including tide in our model due to too many missing values doesn’t matter here
+# the unbalanced number of stations across the monitored years is not ideal, but maximises the available data within the whole study area
+# The “percZero” column tells us that in some years – the first two especially – the percentage of stations with no catch is quite high, often more than half of the time.
 
-summary(bass) # only tide has NAs - removed as predictor?
+describe(bass) # only min and max are informative for categorical variables
+# ALl “year-stations”” have 817 values so not including tide in our model due to too many missing values is ok
+
+summary(bass) # only tide has NAs - removed as predictor
 # sum(is.na(bass))
 
-## Initial visualisations
+# Exploratory visualisations ----------------------------------------------
 
 # Plot the response
 bass |>
   ggplot(aes(x = mosa)) +
   geom_histogram() +
   theme_bw() +
-  labs(x = "Number of fish caught", y = "Count")
+  labs(x = "Number of fish caught", y = "Count") # observe skewness and outliers
 
-# Plot the response against the main explanatory variable
+# Compare the outliers with the mean 
+# the mean is generally < 4 if not < 3 in some years, especially the first ones
+mean(bass$mosa) # global mean
+
+# mean CPUE for each year
+bass |>
+  filter(year == "2013") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2014") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2015") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2016") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2017") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2018") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2019") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2020") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2021") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2022") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+bass |>
+  filter(year == "2023") |>
+  dplyr::pull(mosa) |>
+  mean()
+
+# Plot the response against the main explanatory variable of interest
 bass |>
   ggplot(aes(x = as.numeric(year), y = mosa)) +
   geom_point() + 
@@ -52,34 +129,89 @@ bass |>
   # + ggplot2:::limits(c(0, 50), "y")
   # + facet_wrap(~ station)
 
-# Effect over time seems to be non-linear - cubic spline (ns?)
+# Effect over time seems to be non-linear - use a cubic spline (ns?)
 
-## Possible models:
-# Poisson GLM (stats::glm)
-# Negative Binomial type 2 (glm.nb)
-# Zero inflated models
-# GLMMs
 
-## Global model - numerical instability (Downdated VtV is not positive definite)
+# Candidate models --------------------------------------------------------
 
-a <- glmer(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + vegetation + scale(moam) + (1|station),
-           family = poisson(link = "log"),
-           data = bass)
+## Test for correlation between numeric variables
+corrplot(cor(bass[,c(3:11, 13)]))
 
-b <- glmer(mosa ~ year + scale(d1aug) * scale(longitude) * scale(temp) * scale(sal) * scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
-           data = bass)
-summary(b)
+cor_mat <- cor(bass[,c(3:11, 13)], use = "complete.obs")
+diag(cor_mat) <- NA # ignore correlations of variables with themselves
+high_cor <- which(cor_mat > 0.8 | cor_mat < -0.8, arr.ind = TRUE)
+high_cor_df <- data.frame(Variable1 = rownames(cor_mat)[high_cor[, 1]],
+                          Variable2 = colnames(cor_mat)[high_cor[, 2]],
+                          correlation = cor_mat[high_cor])
+high_cor_df <- high_cor_df[high_cor_df$Variable1 < high_cor_df$Variable2, ] # alphabetical order to remove duplicates
+high_cor_df
 
-1 - sum(residuals(b)^2) / sum((bass$mosa - mean(bass$mosa))^2)
+## Example - Global model
+# lme4: numerical instability (Downdated VtV is not positive definite) 
+f1 <- glmer(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+            family = poisson(link = "log"),
+            data = bass)
+
+# glmmTMB - works
+f2 <- glmmTMB(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              family = poisson(link = "log"),
+              data = bass)
+summary(f2)
 
 ## Variable specification: 
-# station is modelled as a random intercept - grouping structure
+# station is modelled as a random intercept - grouping structure, account for pseudo-replication
 # d1aug incorporates the month and day variables
 # latitude is highly correlated with longitude and salinity so this variable is removed
 # Numeric variables are scaled
-# vegetation converted to numeric to reduce parameters
+# vegetation is categorical with five levels so it was converted to numeric to reduce parameters
 
-## Counterexample - model that fits the data well but is inadequate - simulations or STA QUINZE??
+## GLMMs
+# Poisson 
+var(bass$mosa) 
+mean(bass$mosa) # variance >> mean: counts are overdispersed
+# Negative Binomial type 2 
+# Zero inflated models
+
+### lme4
+## Poisson
+f3 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+            family = poisson(link = "log"),
+            data = bass)
+summary(f3) # model does not converge - change optimizer?
+
+f4 <- glm(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + station,
+          family = poisson(link = "log"),
+          data = bass)
+summary(f4)
+
+anova(f3, f4, test = "Chisq") # the model with the random effect is preferred
+
+## Check for (Multi)Collinearity
+check_collinearity(f3) # all VIF < 10
+
+# Fit for illustrative purposes only:
+drop1(f3) # removing vegetation improves the AIC slightly
+hnp(f3,
+    how.many.out = T,
+    paint = T) # pattern indicative of overdispersion - variance >> mean, check formally using check_overdispersion
+
+## Quasipoisson
+f4 <- glmer(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+            family = quasipoisson(link = "log"),
+            data = bass)
+
+### glmmTMB
+
+### gamlss
+
+
+
+
+
+
+# Counterexamples ---------------------------------------------------------
+
+## Want a model that fits the data well but is inadequate - use simulations or STA QUINZE instead?
 ## Fit a high degree polynomial to year
 fit1 <- glmer(mosa ~ poly(year, 10) + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + vegetation + scale(moam) + (1|station),
               data = bass)
@@ -100,47 +232,55 @@ hnp(fit2,
     how.many.out = TRUE,
     paint = T)
 
-## Test for correlation between numeric variables
-corrplot(cor(bass[,c(3:11, 13)]))
+## The Poisson model has a higher R^2 than NB but it is inadequate
+cor(bass$mosa, fitted(fit2))^2
+cor(bass$mosa, fitted(fit3))^2
 
-##--------------------------------------------------
-cor_mat <- cor(bass[,c(3:11, 13)], use = "complete.obs")
-diag(cor_mat) <- NA # ignore correlations of variables with themselves
-high_cor <- which(cor_mat > 0.8 | cor_mat < -0.8, arr.ind = TRUE)
-high_cor_df <- data.frame(Variable1 = rownames(cor_mat)[high_cor[, 1]],
-                          Variable2 = colnames(cor_mat)[high_cor[, 2]],
-                          correlation = cor_mat[high_cor])
-high_cor_df <- high_cor_df[high_cor_df$Variable1 < high_cor_df$Variable2, ] # alphabetical order to remove duplicates
-high_cor_df
-##--------------------------------------------------
+#######################################################################################
 
-## Does not converge - change optimizer?
-fit2 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
-              family = poisson(link = "log"),
-              data = bass)
-summary(fit2)
 
-## Check for (Multi)Collinearity
-library(performance)
-check_collinearity(fit2) # all VIF < 10
-
-# Fit for illustrative purposes only:
-drop1(fit2) # removing vegetation improves the AIC slightly
-hnp(fit2) # pattern indicative of overdispersion - variance >> mean, check formally using check_overdispersion
 
 ## Try an NB2 model
-fit3 <- gam(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + s(station, bs = "re"),
+fit3 <- gam(mosa ~ year + d1aug + longitude + temp + sal + depth + as.numeric(vegetation) + moam + s(station, bs = "re"),
             family = "nb",
+            method = "ML",
             data = bass)
 summary(fit3)
 
-drop1(fit3)
+drop1(fit2, type = "Chisq")
+
+## Model selection 
+library(itsadug)
+compareML()
+
+library(MuMIn)
+
+## Model adequacy
+
+## hnp helper functions
+# hnp helper functions 
+sfun <- function(n, fit3) {
+  y <- stats::rnbinom(nrow(bass),
+                      size = fit3$family$getTheta(TRUE),
+                      mu = predict(fit3, type = "response"))
+  return(y)
+  }
+
+
+ffun <- function(resp) {
+  mgcv::gam(resp ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + s(station, bs = "re"),
+            family = "nb",
+            method = "ML",
+            data = bass)
+}
+
+dfun <- function(mod) stats::resid(mod, type = "pearson")
 
 ## 10 hnp iterations
 set.seed(2024)
 hfun <- list()
 for(i in 1:10) {
-  hfun[[i]] <- hnp::hnp(fit1,
+  hfun[[i]] <- hnp::hnp(fit3,
                         newclass = TRUE,
                         diagfun = dfun,
                         simfun = sfun,
@@ -153,7 +293,21 @@ hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100)
 HR <- round(FSA::Summarize(hnp_summary), 2)
 cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
 
-# for gamlss models (random structure using random() or re())
+## Zero-inflated models
+
+## glmmTMB models
+
+## Overdispersion:
+# Negative Binomial type II model in mgcv
+# Generalized Poisson, Double Poisson, Poisson-inverse Gaussian, and a Negative Binomial type 1 model in gamlss
+# Generalized Poisson, Conway-Maxwell Poisson, and a Negative Binomial type 1 model in glmmTMB
+
+## gamlss models 
+fit4 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+               family = GPO,
+               data = bass)
+
+
 library(MuMIn)
 model_selection <- model.sel(fit1_gamlss, fit2_gamlss, fit3_gamlss)
 candidate_models <- get.models(model_selection, subset = TRUE)
