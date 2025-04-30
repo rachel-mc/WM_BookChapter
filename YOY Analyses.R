@@ -12,6 +12,7 @@ library(performance)
 library(mgcv)
 library(glmmTMB)
 library(gamlss)
+library(gratia)
 
 # Data importation --------------------------------------------------------
 
@@ -132,7 +133,7 @@ bass |>
 # Effect over time seems to be non-linear - use a cubic spline (ns?)
 
 
-# Candidate models --------------------------------------------------------
+# Model Fitting: Candidate models --------------------------------------------------------
 
 ## Test for correlation between numeric variables
 corrplot(cor(bass[,c(3:11, 13)]))
@@ -151,12 +152,6 @@ high_cor_df
 f1 <- glmer(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
             family = poisson(link = "log"),
             data = bass)
-
-# glmmTMB - works
-f2 <- glmmTMB(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
-              family = poisson(link = "log"),
-              data = bass)
-summary(f2)
 
 ## Variable specification: 
 # station is modelled as a random intercept - grouping structure, account for pseudo-replication
@@ -177,11 +172,13 @@ mean(bass$mosa) # variance >> mean: counts are overdispersed
 f3 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
             family = poisson(link = "log"),
             data = bass)
+
 summary(f3) # model does not converge - change optimizer?
 
 f4 <- glm(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + station,
           family = poisson(link = "log"),
           data = bass)
+
 summary(f4)
 
 anova(f3, f4, test = "Chisq") # the model with the random effect is preferred
@@ -189,24 +186,220 @@ anova(f3, f4, test = "Chisq") # the model with the random effect is preferred
 ## Check for (Multi)Collinearity
 check_collinearity(f3) # all VIF < 10
 
-# Fit for illustrative purposes only:
+# For illustrative purposes only:
 drop1(f3) # removing vegetation improves the AIC slightly
+
 hnp(f3,
     how.many.out = T,
     paint = T) # pattern indicative of overdispersion - variance >> mean, check formally using check_overdispersion
 
-## Quasipoisson
-f4 <- glmer(mosa ~ year + scale(month) + scale(day) + scale(d1aug) + scale(latitude) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
-            family = quasipoisson(link = "log"),
+## Quasipoisson - "quasi" families cannot be used in glmer
+
+## NB2 - how to choose value for theta?
+f4 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+            family = negative.binomial(theta = .05),
             data = bass)
 
+summary(f4)
+
+f5 <- glmer.nb(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+               data = bass)
+
+summary(f5)
+
+## Zero-inflated Poisson - NA?
+
 ### glmmTMB
+## Poisson
+f6 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              family = poisson(link = "log"),
+              data = bass)
+
+summary(f6)
+
+## Zero-inflated Poisson
+f7 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              zi = ~ year, # include all fixed predictors?
+              family = poisson(link = "log"),
+              data = bass)
+
+summary(f7)
+
+## Hurdle Poisson
+f8 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              zi = ~ year, # include all fixed predictors?
+              family = truncated_poisson,
+              data = bass)
+
+summary(f8)
+
+## Negative Binomial type 2
+f9 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              family = nbinom2,
+              data = bass)
+
+summary(f9)
+
+## Zero-inflated Negative Binomial type 2
+f10 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              zi = ~ year, # include all fixed predictors?
+              family = nbinom2,
+              data = bass)
+
+summary(f10)
 
 ### gamlss
+## Poisson
+f11 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = PO,
+              data = na.omit(bass))
+
+summary(f11)
+
+## Zero-inflated Poisson
+f12 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = ZIP,
+              data = na.omit(bass))
+
+summary(f12)
+
+## Negative-Binomial Type 2
+f13 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = NBI,
+              data = na.omit(bass))
+
+summary(f13)
+
+## Generalised Poisson
+f14 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = GPO,
+              data = na.omit(bass))
 
 
+summary(f14)
+
+## Poisson Inverse Gaussian
+f15 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = PIG,
+              data = na.omit(bass))
+
+summary(f15)
+
+## Double Poisson
+f16 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = DPO,
+              data = na.omit(bass))
+
+summary(f16)
 
 
+# Model Adequacy ----------------------------------------------------------
+
+### hnp
+
+## Diagnostic helper functions for glmmTMB
+
+dfun <- function(obj) residuals(obj, type = "pearson")
+
+sfun <- function(n, obj) simulate(obj)[[1]]
+  
+# Fitting function: Pre-specify model
+
+ffun <- function(model = f6,
+                 response,
+                 ...) {
+  
+  f_pred <- deparse(formula(model)[[3]])
+  fam <- model$call$family
+  mod_data <- eval(model$call$data)
+  
+  ﬁt <- try(glmmTMB(response ~ f_pred,
+                    family = fam,
+                    data = mod_data),
+            silent = TRUE)
+  
+  while(class(fit) == "try-error") {
+    response2 <- sfun(1, model)
+    ﬁt <- try(glmmTMB(response2 ~ f_pred,
+                      family = fam,
+                      data = mod_data),
+              silent = TRUE)
+    }
+  return(ﬁt)
+  }
+
+hnp(f6,
+    newclass = TRUE,
+    diagfun = dfun,
+    simfun = sfun,
+    fitfun = ffun,
+    paint = T)
+
+## Helper function for gamlss
+
+hnp_gamlss <- function(model, 
+                       d_fun, # can use Pearson residuals, otherwise default
+                       ...) {
+  
+  fam <- model$family[1]
+  random_generator <- get(paste0("r", fam))
+  params <- model$parameters
+  
+  n <- length(model$y)
+  
+  mu_hat <- predict(model, type = "response")
+  if("sigma" %in% params) sigma_hat <- predict(model, what = "sigma", type = "response")
+  if("nu" %in% params) nu_hat <- predict(model, what = "nu", type = "response")
+  if("tau" %in% params) tau_hat <- predict(model, what = "tau", type = "response")
+  
+  if(length(params) == 1) {
+    s_fun <- function(n, obj) {
+      y_new <- random_generator(n, mu = mu_hat)
+      return(y_new)
+    }
+  } else if(length(params) == 2) {
+    s_fun <- function(n, obj) {
+      y_new <- random_generator(n, mu = mu_hat, sigma = sigma_hat)
+      return(y_new)
+    }
+  } else if(length(params) == 3) {
+    s_fun <- function(n, obj) {
+      y_new <- random_generator(n, mu = mu_hat, sigma = sigma_hat, nu = nu_hat)
+      return(y_new)
+    }
+  } else if(length(parms) == 4) {
+    s_fun <- function(n, obj) {
+      y_new <- random_generator(n, mu = mu_hat, sigma = sigma_hat, nu = nu_hat, tau = tau_hat)
+      return(y_new)
+    }
+  }
+  
+  if(missing(d_fun)) {
+    d_fun <- function(obj) resid(obj)
+  }
+  
+  full_data <- eval(model$call$data)
+  
+  f_fun <- function(y_new) {
+    full_data$y <- y_new
+    newfit <- update(model, formula = y ~ ., data = full_data)
+    return(newfit)
+  }
+  
+  hnp_results <- hnp(model,
+                     newclass = TRUE,
+                     diagfun = d_fun,
+                     simfun = s_fun,
+                     fitfun = f_fun,
+                     ...)
+  
+  return(invisible(hnp_results))
+}
+
+
+### worm plots
+
+wp()
 
 
 # Counterexamples ---------------------------------------------------------
