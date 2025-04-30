@@ -1,0 +1,3 @@
+## test whether Tide has a potential influence on MOSA,  one could reduce the dataset such that only “year-stations” with a value are left in the then reduced dataset
+
+## Some stations that had a missing value for SAL (salinity) for instance, which were initially removed because we wanted to test for this covariate but ended up finding that it has no influence, could then be “brought back” in the dataset because values for all other covariates are available…
