@@ -1,1 +1,1 @@
-# WM_BookChapter
+# Wildlife Management: Integrating Conservation and Innovation in Human-Altered Landscapes
