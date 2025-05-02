@@ -1,23 +1,16 @@
+
 ## Load the libraries
 
-library(corrplot)
 library(dplyr)
 library(FSA)
-library(gamlss)
 library(ggplot2)
-library(glmmTMB)
-library(gratia)
-library(hnp)
-library(itsadug)
 library(janitor)
-library(lme4)
-library(mgcv)
-library(MuMIn)
-library(performance)
 library(psych)
 library(readxl)
 
+
 # Data importation --------------------------------------------------------
+
 
 # File name
 fn <- "~/Desktop/Data/YOY_Striped_Bass_2013_2023.xlsx"
@@ -27,12 +20,14 @@ bass <- read_excel(fn,
   clean_names() |>
   mutate(year = factor(year),
          station = factor(station),
-         tide = as.numeric(tide), # Tide is read in as a character
+         tide = as.numeric(tide), # tide is read in as a character
          vegetation = factor(vegetation))
 
 bass
 
+
 # Descriptive statistics --------------------------------------------------
+
 
 Summarize(mosa ~ year, data = bass)
 
@@ -44,7 +39,9 @@ describe(bass) # only min and max are informative for categorical variables
 summary(bass) # only tide has NAs 
 # sum(is.na(bass))
 
+
 # Exploratory visualisations and metrics ----------------------------------------------
+
 
 # Plot the response
 bass |>
@@ -142,230 +139,6 @@ bass |>
   ggplot2:::limits(c(0, 50), "y") +
   facet_wrap(~ station)
 
-
-
-# Model Adequacy ----------------------------------------------------------
-
-### hnp
-
-## lme4
-hnp(f2)
-hnp(f4)
-hnp(f5)
-
-## Diagnostic helper functions for glmmTMB - models 6 to 13
-
-dfun <- function(obj) residuals(obj, type = "pearson")
-
-sfun <- function(n, obj) simulate(obj)[[1]]
-  
-# Fitting function: Pre-specify model
-
-ffun <- function(model = f6,
-                 response,
-                 ...) {
-  
-  f_pred <- deparse(formula(model)[[3]])
-  fam <- model$call$family
-  mod_data <- eval(model$call$data)
-  
-  ﬁt <- try(glmmTMB(response ~ f_pred,
-                    family = fam,
-                    data = mod_data),
-            silent = TRUE)
-  
-  while(class(fit) == "try-error") {
-    response2 <- sfun(1, model)
-    ﬁt <- try(glmmTMB(response2 ~ f_pred,
-                      family = fam,
-                      data = mod_data),
-              silent = TRUE)
-    }
-  return(ﬁt)
-  }
-
-hnp(f6,
-    newclass = TRUE,
-    diagfun = dfun,
-    simfun = sfun,
-    fitfun = ffun,
-    paint = T) # error
-
-## Helper function for gamlss
-
-hnp_gamlss_count <- function(model, 
-                             d_fun, # can use Pearson residuals, otherwise default
-                             ...) {
-  
-  fam <- model$family[1]
-  random_generator <- get(paste0("r", fam))
-  params <- model$parameters
-  
-  n <- length(model$y)
-  
-  mu_hat <- predict(model, type = "response")
-  if("sigma" %in% params) sigma_hat <- predict(model, what = "sigma", type = "response")
-  if("nu" %in% params) nu_hat <- predict(model, what = "nu", type = "response")
-  if("tau" %in% params) tau_hat <- predict(model, what = "tau", type = "response")
-  
-  if(length(params) == 1) {
-    s_fun <- function(n, obj) {
-      y_new <- random_generator(n, mu = mu_hat)
-      return(y_new)
-    }
-  } else if(length(params) == 2) {
-    s_fun <- function(n, obj) {
-      y_new <- random_generator(n, mu = mu_hat, sigma = sigma_hat)
-      return(y_new)
-    }
-  } else if(length(params) == 3) {
-    s_fun <- function(n, obj) {
-      y_new <- random_generator(n, mu = mu_hat, sigma = sigma_hat, nu = nu_hat)
-      return(y_new)
-    }
-  } else if(length(parms) == 4) {
-    s_fun <- function(n, obj) {
-      y_new <- random_generator(n, mu = mu_hat, sigma = sigma_hat, nu = nu_hat, tau = tau_hat)
-      return(y_new)
-    }
-  }
-  
-  if(missing(d_fun)) {
-    d_fun <- function(obj) resid(obj)
-  }
-  
-  full_data <- eval(model$call$data)
-  
-  f_fun <- function(y_new) {
-    full_data$y <- y_new
-    newfit <- update(model, formula = y ~ ., data = full_data)
-    return(newfit)
-  }
-  
-  hnp_results <- hnp(model,
-                     newclass = TRUE,
-                     diagfun = d_fun,
-                     simfun = s_fun,
-                     fitfun = f_fun,
-                     ...)
-  
-  return(invisible(hnp_results))
-}
-
-hnp_gamlss_count(f14)
-hnp_gamlss_count(f15)
-hnp_gamlss_count(f16)
-hnp_gamlss_count(f17)
-hnp_gamlss_count(f18)
-hnp_gamlss_count(f19)
-
-## 10 hnp runs for each model - SLOW
-
-set.seed(2025)
-hnp_list <- list()
-for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f14,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
-}
-
-hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100) 
-HR <- round(FSA::Summarize(hnp_summary), 2)
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
-
-set.seed(2025)
-hnp_list <- list()
-for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f15,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
-}
-
-
-hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100) 
-HR <- round(FSA::Summarize(hnp_summary), 2)
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
-
-set.seed(2025)
-hnp_list <- list()
-for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f16,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
-}
-
-hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100) 
-HR <- round(FSA::Summarize(hnp_summary), 2)
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
-
-set.seed(2025)
-hnp_list <- list()
-for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f17,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
-}
-
-hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100) 
-HR <- round(FSA::Summarize(hnp_summary), 2)
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
-
-set.seed(2025)
-hnp_list <- list()
-for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f18,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
-}
-
-hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100) 
-HR <- round(FSA::Summarize(hnp_summary), 2)
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
-
-set.seed(2025)
-hnp_list <- list()
-for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f19,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
-}
-
-hnp_summary <- sapply(hfun, function(x) x$out / x$total * 100) 
-HR <- round(FSA::Summarize(hnp_summary), 2)
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
-
-### Worm plots for gamlss
-
-wp(f14)
-wp(f15)
-wp(f16)
-wp(f17)
-wp(f18)
-wp(f19)
 
 # Model Selection ---------------------------------------------------------
 
