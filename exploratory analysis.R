@@ -125,7 +125,7 @@ bass |>
   theme_bw() +
   labs(x = "Year", y = "Number of fish caught") +
   scale_x_continuous(breaks = 2013:2023) +
-  geom_smooth(se = F) +
+  geom_smooth() +
   ggplot2:::limits(c(0, 50), "y")
 
 # Per station
@@ -134,42 +134,9 @@ bass |>
   geom_point() + 
   theme_bw() +
   labs(x = "Year", y = "Number of fish caught") +
-  scale_x_continuous(breaks = 2013:2023) +
   geom_smooth(se = F) +
   ggplot2:::limits(c(0, 50), "y") +
-  facet_wrap(~ station)
-
-
-# Model Selection ---------------------------------------------------------
-
-# Use pre-determined adequate models only
-
-# Chi squared goodness of fit test?
-
-# IC
-model_selection <- model.sel(f11, f12, f13, f14, f15, f16) # adequate models only
-candidate_models <- get.models(model_selection, subset = TRUE)
-top_ranking_model <- candidate_models[[1]]
-
-# Predictions -------------------------------------------------------------
-
-fitted <- predict(top_ranking_model, type = "link", se.fit = TRUE)
-pred <- exp(fitted$fit)
-LL <- exp(fitted$fit - 1.96 * fitted$se.fit)
-UL <- exp(fitted$fit + 1.96 * fitted$se.fit)
-pred_mean <- pred[[1]]
-ci_ll <- LL[[1]]
-ci_ul <- UL[[1]]
-
-observed_mean <- mean(top_ranking_model$y)
-plot_data <- round(cbind(Year = bass$year, pred, ci_ll, ci_ul), 2)
-
-## Visualisation 
-
-ggplot(data = plot_data, aes(x = Year)) +
-  geom_point(aes(y = pred)) +
-  geom_errorbar(aes(ymin = ci_ll, ymax = ci_ul)) +
-  # geom_hline(yintercept = , col = "red", lwd = 1.1, lty = 2)
-  labs(main = "Fitted Model estimates with 95% error bars",
-       x = "Year",
-       y = "CPUE (n/station)")
+  facet_wrap(~ station) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
