@@ -12,7 +12,6 @@ library(splines)
 
 # Candidate Generalised Linear Mixed Models --------------------------------------------------------
 
-
 ## Global model in lme4 - all predictors except fishtotal
 # The Poisson distribution is commonly employed for count data
 f1 <- glmer(mosa ~ year + month + day + d1aug + latitude + longitude + tide + temp + sal + depth + vegetation + moam + (1|station),
@@ -151,49 +150,56 @@ f14 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scal
 
 summary(f14)
 
-## Negative Binomial type 1 model
+## Zero-inflated Negative Binomial (Type 2) model
 f15 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
-              family = NBII,
+              family = ZINBI,
               data = na.omit(bass))
 
 summary(f15)
 
-## Generalised Poisson model
+## Negative Binomial type 1 model
 f16 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
-              family = GPO,
+              family = NBII,
               data = na.omit(bass))
 
 summary(f16)
 
-## Poisson-Inverse Gaussian model
+## Generalised Poisson model
 f17 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
-              family = PIG,
+              family = GPO,
               data = na.omit(bass))
 
 summary(f17)
 
-## Double Poisson model
+## Poisson-Inverse Gaussian model
 f18 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = PIG,
+              data = na.omit(bass))
+
+summary(f18)
+
+## Double Poisson model
+f19 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               family = DPO,
               n.cyc = 300,
               data = na.omit(bass))
 
-summary(f18)
+summary(f19)
 # Does not converge - discard
 
 ## Explicitly modelling the variance of the 2 years with outliers  
-f19 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+f20 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               sigma.formula = ~ I(year %in% c(2018, 2019)), 
               family = NBI,
               data = na.omit(bass))
 
-summary(f19)
+summary(f20)
 
-wp(f19)
+wp(f20)
 
 # Try a non-linear effect for time 
-f20 <- gamlss(mosa ~ ns(as.numeric(year), df = 3) + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+f21 <- gamlss(mosa ~ ns(as.numeric(year), df = 3) + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               family = NBI,
               data = na.omit(bass))
 
-summary(f20)
+summary(f21)
