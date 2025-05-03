@@ -1,4 +1,16 @@
 
+## Load the libraries
+
+library(gamlss)
+library(janitor)
+library(performance)
+library(readxl)
+library(tidyverse)
+
+
+# Data Cleaning -----------------------------------------------------------
+
+
 # Code to filter the raw data to obtain the 'clean' subset used 
 
 fn <- "~/Desktop/Data/YOY_Striped_Bass_2013_2023.xlsx"
@@ -18,15 +30,37 @@ at_least_one <- bass_raw |>
 
 no_NA <- at_least_one[complete.cases(at_least_one[,-8]),] ### not 817
 
+
+# Inadequate Model Example --------------------------------------------------------
+
+
+# Use the Gaussian distribution (glmer default)
+# This is incorrect as the response variable is counts
+
+fit3 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
+              data = bass)
+
+summary(fit3)
+
+set.seed(2025)
+
+hnp(fit3,
+    how.many.out = TRUE,
+    paint = T)
+
+
+# Generalised Linear Model (GLM) ------------------------------------------------
+
+
 ## Fitting the GLM counterpart of the Poisson GLMM in lme4 (no random effect)
-f_ <- glm(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + station,
+fit4 <- glm(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + station,
           family = poisson(link = "log"),
           data = bass)
 
-summary(f_)
+summary(fit4)
 
 # Likelihood Ratio Test
-anova(f2, f_, test = "Chisq") 
+anova(f2, fit4, test = "Chisq") 
 # the model with the random effect is preferred
 
 # Half Normal plot of the Poisson GLMM
@@ -35,13 +69,35 @@ hnp(f2,
     paint = T) 
 # pattern indicative of overdispersion - variance >> mean
 
-## test whether Tide has a potential influence on MOSA,  one could reduce the dataset such that only “year-stations” with a value are left in the then reduced dataset
 
-## Some stations that had a missing value for SAL (salinity) for instance, which were initially removed because we wanted to test for this covariate but ended up finding that it has no influence, could then be “brought back” in the dataset because values for all other covariates are available…
+# Assess the effect of Tide on Mosa -----------------------------------------------
 
-check_autocorrelation()
-start_value_rho()
 
-# Could use complete cases with all NAs removed - less rows
+## Fit an adequate PIG model in 'gamlss'
 
-# salinity and longitude are expected to be positively associated as you move eastward, but whether this generates estimation problems for the variance is to be determined 
+fit5 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(tide) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+              family = PIG,
+              data = na.omit(bass)) # already reduced dataset
+
+summary(fit5)
+
+
+# Variable Significance ---------------------------------------------------
+
+
+## Covariates that have no statistical support could be removed from the data to further maximise the available information
+
+
+
+# Temporal Autocorrelation ------------------------------------------------
+
+
+check_autocorrelation(f18)
+
+
+
+# Standard errors ---------------------------------------------------------
+
+
+## Compare the inference errors of adequate (PIG) vs inadequate (PO) models
+
