@@ -1,70 +1,130 @@
 
+## Load the libraries
+
+library(gamlss)
+library(MuMIn)
 
 # Case 1 ------------------------------------------------------------------
 
-## Show increase in R^2 when more predictors are added 
-# As we are fitting mixed models, the gamlss package is used for model fitting
-# and for its pseudo R^2 function
+## Demonstrate the mathematical fact that R^2 increases as more predictors are added 
 
-f1 <- gamlss(mosa ~ year + scale(d1aug) + random(station),
-             family = NBI,
-             data = na.omit(bass))
+## We fit a(n inadequate) linear model so that R^2 is directly applicable 
 
-summary(f1)
+m1 <- lm(mosa ~ year + scale(d1aug),
+             data = bass)
 
-Rsq(f1)
+a <- summary(m1)
+a$r.squared
 
-f2 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + random(station),
-             family = NBI,
-             data = na.omit(bass))
+m2 <- lm(mosa ~ year + scale(d1aug) + scale(longitude),
+         data = bass)
 
-summary(f2)
+b <- summary(m2)
+b$r.squared
 
-Rsq(f2)
+m3 <- lm(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp),
+         data = bass)
 
-f3 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + random(station),
-             family = NBI,
-             data = na.omit(bass))
+d <- summary(m3)
+d$r.squared
 
-summary(f3)
-
-Rsq(f3)
+# 0.08288146 > 0.06878097 > 0.04678821
 
 
 # Case 2 ------------------------------------------------------------------
 
-## An inadequate model is chosen from candidate set
+## An inadequate model is chosen from the candidate set
 
+# The Poisson, Zero-inflated Poisson, NB2, and NB1 models fitted in 
+# 'gamlss' are all inadequate according to 'hnp'
+
+model.sel(f12, f13, f14, f16, rank = "AIC")
+model.sel(f12, f13, f14, f16)
+model.sel(f12, f13, f14, f16, rank = "BIC")
+
+# The NB2 model is chosen as the top-ranking model according to AIC, AICc, and BIC,
+# despite being inadequate.
 
 
 # Case 3 ------------------------------------------------------------------
 
-
-
 ## Model that fits the data well but is inadequate
 
+## Fit a saturated Poisson model to the data
 
+n <- nrow(na.omit(bass))
+mosa <- na.omit(bass) |> dplyr::pull(mosa)
+x <- gl(n, k = 1) # factor with the same number of levels as data points 
 
-## Fit a high degree polynomial to year
-fit1 <- glmer(mosa ~ poly(year, 10) + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + vegetation + scale(moam) + (1|station),
-              data = bass)
+fit1 <- gamlss(mosa ~ x,
+               family = PO)
 
-summary(fit1)
+plot(mosa)
+lines(fitted(fit1))
 
-## Inadequate model
-# Fit a Gaussian GLMM (default) - incorrect: response variable is counts
-fit2 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
-              data = bass)
+Rsq(fit1) # pseudo R^2 of gamlss (for illustrative purposes)
 
-summary(fit2)
+set.seed(2025) # for reproducable results
 
-hnp(fit2,
-    how.many.out = TRUE,
-    paint = T)
+hnp_gamlss_count(fit1,
+                 how.many.out = T,
+                 paint = T)
 
-## The Poisson model has a higher R^2 than NB but it is inadequate
-cor(bass$mosa, fitted(fit2))^2
-cor(bass$mosa, fitted(fit3))^2
+## The Poisson distribution is inadequate as these counts are overdispersed.
 
-## Predictive ability
+# Case 4 ------------------------------------------------------------------
 
+## An adequate model that has a poor fit
+
+# Try the null PIG model
+
+fit2 <- gamlss(mosa ~ 1,
+              family = PIG,
+              data = na.omit(bass))
+
+summary(fit)
+
+hnp_gamlss_count(fit2,
+                 how.many.out = TRUE,
+                 paint = T)
+
+# Case 5 ------------------------------------------------------------------
+
+## Compare the predictive ability of an adequate (PIG) and inadequate (PO) model 
+
+## LOO-CV in 'gamlss'
+n <- nrow(na.omit(bass))
+pred <- numeric(n) # create space to store predictions
+
+for (i in 1:n) {
+  train_data <- na.omit(bass)[-i,] # omit the ith row
+  test_data <- na.omit(bass)[i, , drop = FALSE]
+  
+  # Fit the model using the training data
+  mod <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+                family = "PO",
+                data = train_data)  
+  
+  # Predict on left-out observation
+  pred[i] <- predict(mod, newdata = test_data, type = "response")
+  }
+
+mean((bass$mosa - pred)^2) # mean squared error: 1903.072
+
+n <- nrow(na.omit(bass))
+pred <- numeric(n) 
+
+for (i in 1:n) {
+  train_data <- na.omit(bass)[-i,] 
+  test_data <- na.omit(bass)[i, , drop = FALSE]
+
+  mod <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
+                family = "PIG",
+                data = train_data)  
+  
+  pred[i] <- predict(mod, newdata = test_data, type = "response")
+}
+
+mean((bass$mosa - pred)^2) # 782023.8
+
+## The inadequate model has a lower predictive error :O
