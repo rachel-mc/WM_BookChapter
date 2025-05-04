@@ -1,6 +1,8 @@
 
 ## Load the libraries
 
+library(crayon)
+library(FSA)
 library(gamlss)
 library(hnp)
 
@@ -65,11 +67,13 @@ hnp_gamlss_count <- function(model,
 
 set.seed(2025)
 
+## These plots can take quite some time to run.
+
 hnp_gamlss_count(f12,
                  how.many.out = T,
                  paint = T)
 
-hnp_gamlss_count(f13,
+hnp_gamlss_count(f13, # particularly slow
                  how.many.out = T,
                  paint = T)
 
@@ -77,17 +81,13 @@ hnp_gamlss_count(f14,
                  how.many.out = T,
                  paint = T)
 
-hnp_gamlss_count(f15,
+hnp_gamlss_count(f16, # particularly slow
                  how.many.out = T,
                  paint = T)
 
-hnp_gamlss_count(f16,
+hnp_gamlss_count(f17,
                  how.many.out = T,
                  paint = T)
-
-# hnp_gamlss_count(f17,
-                  # how.many.out = T,
-                  # paint = T)
 ## Error in apply(res, 1, quantile, c((1 - conf)/2, 0.5, (1 - conf)/2 + conf)) : 
 ## dim(X) must have a positive length
 
@@ -103,24 +103,134 @@ hnp_gamlss_count(f21,
                  how.many.out = T,
                  paint = T)
 
-## 10 hnp runs for the 'gamlss' models (copy & paste)
+## 10 hnp runs for the convergent 'gamlss' models 
 
 set.seed(2025)
 
 hnp_list <- list()
 
 for (i in 1:10) {
-  hnp_list[[i]] <- hnp(f18,
-                       newclass = TRUE,
-                       diagfun = dfun,
-                       simfun = sfun,
-                       fitfun = ffun,
-                       how.many.out = TRUE,
-                       plot.sim = FALSE)
+  hnp_list[[i]] <- hnp_gamlss_count(f12,
+                                    how.many.out = T,
+                                    plot.sim = F)
   }
 
 hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
 
-HR <- round(FSA::Summarize(hnp_summary), 2)
+HR <- round(Summarize(hnp_summary), 2)
 
-cat("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n")
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+# SLOW
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f13,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f14,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+# SLOW
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f16,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f17,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f18,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f20,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+set.seed(2025)
+
+hnp_list <- list()
+
+for (i in 1:10) {
+  hnp_list[[i]] <- hnp_gamlss_count(f21,
+                                    how.many.out = T,
+                                    plot.sim = F)
+}
+
+hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100) 
+
+HR <- round(Summarize(hnp_summary), 2)
+
+cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
