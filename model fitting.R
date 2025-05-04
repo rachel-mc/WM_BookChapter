@@ -17,14 +17,14 @@ library(splines)
 f1 <- glmer(mosa ~ year + month + day + d1aug + latitude + longitude + tide + temp + sal + depth + vegetation + moam + (1|station),
             family = poisson(link = "log"),
             data = bass)
-# numerical instability (Downdated VtV is not positive definite) 
+# numerical issues (Downdated VtV is not positive definite) 
 
 ## Test for correlation between the numeric variables
 corrplot(cor(bass[,c(3:7, 9:11, 13)]))
 
-cor_mat <- cor(bass[,c(3:7, 9:11, 13)], use = "complete.obs")
+cor_mat <- cor(bass[,c(3:7, 9:11, 13)])
 diag(cor_mat) <- NA # ignore correlations of variables with themselves
-high_cor <- which(cor_mat > 0.8 | cor_mat < -0.8, arr.ind = TRUE)
+high_cor <- which(cor_mat > 0.8 | cor_mat < - 0.8, arr.ind = TRUE) # location according to variables
 high_cor_df <- data.frame(Variable1 = rownames(cor_mat)[high_cor[, 1]],
                           Variable2 = colnames(cor_mat)[high_cor[, 2]],
                           correlation = cor_mat[high_cor])
@@ -32,11 +32,11 @@ high_cor_df <- high_cor_df[high_cor_df$Variable1 < high_cor_df$Variable2, ] # al
 high_cor_df
 
 ## Variable specification: 
-# station is modelled as a random intercept - account for pseudo-replication, grouping structure in the data
+# station is modelled as a random intercept to account for pseudo-replication (grouping structure) in the data
 # d1aug incorporates the month and day variables so the latter are removed
 # latitude is highly correlated with longitude and salinity (see above) so this variable is removed 
 # Numeric variables are scaled
-# vegetation is categorical with five levels so it was converted to numeric to reduce parameters used
+# vegetation is categorical with five levels so it is converted to numeric to reduce parameters used in the model
 
 ## Refit the Poisson model in lme4 with scaled and omitted variables 
 f2 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
@@ -45,9 +45,6 @@ f2 <- glmer(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(
 
 summary(f2) # model does not converge - change optimizer?
 
-## Check for (Multi)Collinearity
-check_collinearity(f2) # all VIF < 10
-
 ## Overdispersion
 var(bass$mosa) 
 mean(bass$mosa) # variance >> mean
@@ -55,7 +52,7 @@ mean(bass$mosa) # variance >> mean
 # Formal test using the check_overdispersion() function of "performance"
 check_overdispersion(f2)
 
-# "quasi" families cannot be used in glmer
+# "quasi" families cannot be used with glmer()
 
 ## Negative Binomial type 2 model in lme4
 f3 <- glmer.nb(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
@@ -63,8 +60,11 @@ f3 <- glmer.nb(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + sca
 
 summary(f3)
 
+## Check for (Multi)Collinearity
+check_collinearity(f3) # all VIF < 10
+
 ### Now using the glmmTMB modelling framework
-## Here we can fit additional models to accommodate zero-inflation and overdispersion
+## Here we can fit additional models that accommodate zero-inflation and overdispersion
 
 ## Poisson model
 f4 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
@@ -72,6 +72,8 @@ f4 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scal
               data = bass)
 
 summary(f4)
+
+check_overdispersion(f4)
 
 ## Zero-inflated Poisson model
 f5 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
@@ -111,13 +113,12 @@ f9 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scal
 
 summary(f9)
 
-## Conway-Maxwell Poisson model - SLOW
+## Conway-Maxwell Poisson model - SLOW (2+ hours to fit)
 f10 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
                family = compois,
                data = bass) 
 
 summary(f10)
-# Does not converge - discard
 
 ## Negative Binomial type 1 model
 f11 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + (1|station),
@@ -125,6 +126,17 @@ f11 <- glmmTMB(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + sca
                data = bass)
 
 summary(f11)
+
+## Check model convergence - all models converge
+
+f4$fit$convergence
+f5$fit$convergence
+f6$fit$convergence
+f7$fit$convergence
+f8$fit$convergence
+f9$fit$convergence
+f10$fit$convergence
+f11$fit$convergence
 
 ### Now using the gamlss modelling framework
 
@@ -138,7 +150,7 @@ summary(f12)
 ## Zero-inflated Poisson
 f13 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               family = ZIP,
-              n.cyc = 100, # helps algorithm to converge
+              n.cyc = 300, # more iterations to help algorithm converge
               data = na.omit(bass))
 
 summary(f13)
@@ -153,6 +165,7 @@ summary(f14)
 ## Zero-inflated Negative Binomial (Type 2) model
 f15 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               family = ZINBI,
+              n.cyc = 300,
               data = na.omit(bass))
 
 summary(f15)
@@ -160,6 +173,7 @@ summary(f15)
 ## Negative Binomial type 1 model
 f16 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               family = NBII,
+              n.cyc = 300,
               data = na.omit(bass))
 
 summary(f16)
@@ -185,7 +199,6 @@ f19 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scal
               data = na.omit(bass))
 
 summary(f19)
-# Does not converge - discard
 
 ## Explicitly modelling the variance of the 2 years with outliers  
 f20 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
@@ -195,11 +208,22 @@ f20 <- gamlss(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp) + scal
 
 summary(f20)
 
-wp(f20)
-
 # Try a non-linear effect for time 
 f21 <- gamlss(mosa ~ ns(as.numeric(year), df = 3) + scale(d1aug) + scale(longitude) + scale(temp) + scale(sal) + scale(depth) + as.numeric(vegetation) + scale(moam) + random(station),
               family = NBI,
               data = na.omit(bass))
 
 summary(f21)
+
+## Check model convergence
+
+f12$converged
+f13$converged
+f14$converged
+f15$converged # does not converge - discard model
+f16$converged
+f17$converged
+f18$converged
+f19$converged # does not converge - discard model
+f20$converged
+f21$converged
