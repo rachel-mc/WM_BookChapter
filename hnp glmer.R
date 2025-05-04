@@ -4,7 +4,7 @@
 library(glmer)
 library(hnp)
 
-# Helper functions for glmer.nb()
+# Helper functions for glmer.nb() models
 
 dfun <- function(obj) residuals(obj, type = "pearson")
   
