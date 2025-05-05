@@ -4,37 +4,51 @@
 library(gamlss)
 library(MuMIn)
 
+
 # Case 1 ------------------------------------------------------------------
+
+
+## Higher apparent goodness-of-fit that results from adding more predictors only
 
 ## Demonstrate the mathematical fact that R^2 increases as more predictors are added 
 
 ## We fit a(n inadequate) linear model so that R^2 is directly applicable 
 
-m1 <- lm(mosa ~ year + scale(d1aug),
-             data = bass)
+m1 <- lm(mosa ~ year + station,
+         data = bass)
 
 a <- summary(m1)
 a$r.squared
 
-m2 <- lm(mosa ~ year + scale(d1aug) + scale(longitude),
+m2 <- lm(mosa ~ year + station + scale(depth),
          data = bass)
 
 b <- summary(m2)
 b$r.squared
 
-m3 <- lm(mosa ~ year + scale(d1aug) + scale(longitude) + scale(temp),
+m3 <- lm(mosa ~ year + station + scale(depth) + scale(sal),
          data = bass)
 
 d <- summary(m3)
 d$r.squared
 
-# 0.08288146 > 0.06878097 > 0.04678821
+# 0.1692238 > 0.1692077 > 0.1692054
+
+## m3 has the 'best fit' to the data
+
+anova(m1, m2, m3,
+      test = "Chisq")
+
+## According to the Chi-squared test, the simplest model is preferred
+## despite having the 'worst fit' to the data
 
 
 # Case 2 ------------------------------------------------------------------
 
+
 ## An inadequate model is chosen from the candidate set
 
+#### Trivial example:
 # The Poisson, Zero-inflated Poisson, NB2, and NB1 models fitted in 
 # 'gamlss' are all inadequate according to 'hnp'
 
@@ -62,33 +76,42 @@ fit1 <- gamlss(mosa ~ x,
 plot(mosa)
 lines(fitted(fit1))
 
-Rsq(fit1) # pseudo R^2 of gamlss (for illustrative purposes)
+Rsq(fit1) # pseudo R^2 of gamlss: model traces the data points exactly
 
-set.seed(2025) # for reproducable results
+set.seed(2025) # for reproducible results
 
 hnp_gamlss_count(fit1,
                  how.many.out = T,
                  paint = T)
 
-## The Poisson distribution is inadequate as these counts are overdispersed.
+## We know that these counts are overdispersed, but this model is so overfit
+## that the Poisson model (wrongly) appears to be adequate.
+
 
 # Case 4 ------------------------------------------------------------------
 
+
 ## An adequate model that has a poor fit
 
-# Try the null PIG model
+# The intercept-only Generalised Poisson model
 
 fit2 <- gamlss(mosa ~ 1,
-              family = PIG,
+              family = GPO,
               data = na.omit(bass))
 
-summary(fit)
+summary(fit2)
+
+set.seed(2025)
 
 hnp_gamlss_count(fit2,
                  how.many.out = TRUE,
                  paint = T)
 
+Rsq(fit2) # explains practically no variation in the YOY counts
+
+
 # Case 5 ------------------------------------------------------------------
+
 
 ## Compare the predictive ability of an adequate (PIG) and inadequate (PO) model 
 
@@ -97,7 +120,7 @@ n <- nrow(na.omit(bass))
 pred <- numeric(n) # create space to store predictions
 
 for (i in 1:n) {
-  train_data <- na.omit(bass)[-i,] # omit the ith row
+  train_data <- na.omit(bass)[-i,] # remove the ith row
   test_data <- na.omit(bass)[i, , drop = FALSE]
   
   # Fit the model using the training data
