@@ -101,7 +101,7 @@ for (i in 1:n) {
 
 mean((bass$mosa - pred)^2) # Mean-squared error = 1.765303e+27
 
-## Poisson-Inverse Gaussian
+# Poisson-Inverse Gaussian
 
 n <- nrow(na.omit(bass))
 pred <- numeric(n) 
