@@ -103,7 +103,8 @@ hnp_gamlss_count(f21,
                  how.many.out = T,
                  paint = T)
 
-## 10 hnp runs for the convergent 'gamlss' models 
+## 10 hnp runs for the convergent 'gamlss' models.
+## These for loops can take quite some time to run.
 
 set.seed(2025)
 
@@ -121,11 +122,13 @@ HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
 
+## 99.31 %  [ 99.07  -  99.6 ] 
+
 set.seed(2025)
 
 hnp_list <- list()
 
-# SLOW
+# VERY SLOW
 for (i in 1:10) {
   hnp_list[[i]] <- hnp_gamlss_count(f13,
                                     how.many.out = T,
@@ -138,11 +141,13 @@ HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
 
+## 58.07 %  [ 55.98  -  59.71 ] 
+
 set.seed(2025)
 
 hnp_list <- list()
 
-for (i in 1:10) {
+for (i in 1:10) { 
   hnp_list[[i]] <- hnp_gamlss_count(f14,
                                     how.many.out = T,
                                     plot.sim = F)
@@ -154,11 +159,13 @@ HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
 
+## 47.87 %  [ 36.84  -  58.24 ] 
+
 set.seed(2025)
 
 hnp_list <- list()
 
-# SLOW
+# VERY VERY SLOW
 for (i in 1:10) {
   hnp_list[[i]] <- hnp_gamlss_count(f16,
                                     how.many.out = T,
@@ -171,6 +178,10 @@ HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
 
+## 77.31 %  [ 72.07  -  80.32 ]
+
+
+## Issues with 10 hnp iterations for GPO
 set.seed(2025)
 
 hnp_list <- list()
@@ -191,6 +202,7 @@ set.seed(2025)
 
 hnp_list <- list()
 
+# VERY VERY VERY VERY SLOW
 for (i in 1:10) {
   hnp_list[[i]] <- hnp_gamlss_count(f18,
                                     how.many.out = T,
@@ -202,6 +214,8 @@ hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100)
 HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+## 1.36 %  [ 0  -  3.46 ]
 
 set.seed(2025)
 
@@ -219,6 +233,8 @@ HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
 
+## 67.57 %  [ 60.77  -  73.94 ]
+
 set.seed(2025)
 
 hnp_list <- list()
@@ -234,3 +250,5 @@ hnp_summary <- sapply(hnp_list, function(x) x$out / x$total * 100)
 HR <- round(Summarize(hnp_summary), 2)
 
 cat(red("Mean % [min - max] of residuals outside the simulated envelope = ",HR[2],"%"," [",HR[[4]]," - ",HR[[8]],"]", "\n", "\n"))
+
+## 63.5 %  [ 59.18  -  66.49 ] 
